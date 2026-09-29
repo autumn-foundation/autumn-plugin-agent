@@ -1,0 +1,6 @@
+/target/
+/target-agent/
+*.log
+proptest-regressions/
+*.orig
+.DS_Store

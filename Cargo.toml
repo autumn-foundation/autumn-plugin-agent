@@ -1,0 +1,53 @@
+[package]
+name = "autumn-plugin-agent"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Autumn plugin: provider-agnostic LLM agent harness with tool calling (OpenAI-compatible and Anthropic)."
+license = "Apache-2.0"
+repository = "https://github.com/madmax983/autumn-plugin-agent"
+readme = "README.md"
+keywords = ["autumn", "llm", "agent", "tool-calling", "plugin"]
+categories = ["web-programming", "web-programming::http-server"]
+exclude = [".github/", "docs/", "CLAUDE.md", "clippy.toml", "proptest-regressions/"]
+
+[features]
+default = []
+# Speak to providers over rustls with the platform verifier instead of
+# bundled WebPKI roots.
+native-tls = ["reqwest/rustls-tls-native-roots"]
+
+[dependencies]
+# No default features: the host app selects the Autumn features.
+autumn-web = { version = ">=0.7, <0.8", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+http = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+thiserror = "2"
+toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+proptest = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+module_name_repetitions = "allow"
+redundant_pub_crate = "allow"
