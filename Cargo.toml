@@ -19,7 +19,7 @@ native-tls = ["reqwest/rustls-tls-native-roots"]
 
 [dependencies]
 # No default features: the host app selects the Autumn features.
-autumn-web = { version = ">=0.7, <0.8", default-features = false }
+autumn-web = { version = ">=0.8, <0.9", default-features = false }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 http = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }

@@ -2,6 +2,8 @@
 
 Provider-agnostic LLM agent harness with tool calling for [Autumn](https://autumn-web.app) apps.
 
+Requires `autumn-web` 0.8.
+
 One trait, two providers, zero heavyweight LLM SDKs. The plugin speaks HTTP
 directly:
 
@@ -127,7 +129,7 @@ enqueue_agent_run(AgentRunArgs {
 - Token accounting mixes provider-reported usage with a `bytes / 4`
   heuristic between calls. Good enough for a guardrail, never for billing.
 - The plugin reads `[agent]` from `autumn.toml` itself with the `toml`
-  crate; Autumn 0.7 exposes no per-section accessor to plugins, so the
+  crate; Autumn 0.8 still exposes no per-section accessor to plugins, so the
   framework's own profile layering does not apply to plugin keys yet.
 
 ## License

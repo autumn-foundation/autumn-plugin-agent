@@ -6,6 +6,10 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ### Changed
 
+- Upgrade to Autumn 0.8: `autumn-web` requirement moves from `>=0.7, <0.8`
+  to `>=0.8, <0.9`. The plugin surface it uses (`Plugin`, `config_section`,
+  `on_startup`, `#[job]`, `HealthIndicator`, `FromRequestParts<AppState>`)
+  compiles unchanged. Apps on Autumn 0.7 must stay on the 0.1 line.
 - Background-job enqueue API: handlers now call the documented
   `pub async fn enqueue_agent_run(AgentRunArgs) -> AutumnResult<()>`
   (re-exported at the crate root). The `#[job]`-generated `RunAgentJob`

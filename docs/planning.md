@@ -18,6 +18,18 @@ cached `autumn-web-0.7.0` source — never from training memory.
 | Errors | `autumn_web::{AutumnError, AutumnResult}` at crate root; `AutumnError::{internal_server_error_msg, service_unavailable_msg, ...}` + `.with_status(StatusCode)`. (source: `src/error.rs`) |
 | API docs | Autumn ships `#[apidoc]` + swagger-ui built in — not reinvented here. |
 
+## Autumn 0.8 re-grounding (2026-10-07, via the `autumn-web-0.8.0` source)
+
+The docs MCP still serves the 0.7.0 guides, so every 0.8 touchpoint below
+was read from the published `autumn-web-0.8.0` crate source.
+
+| Need | Finding |
+|------|---------|
+| Existing surface | `Plugin`, `config_section`, `on_startup`, `#[job]`, `jobs!`, `HealthIndicator`, `extension_or_insert_with`: unchanged. The crate compiles and tests pass with no code change. |
+| Plugin config access | Still none. 0.8 adds `load_with_env_and_plugin_roots`, which only exempts declared roots from the strict unknown-key check; the plugin still reads `[agent]` itself. |
+| Tracked jobs | `autumn_web::job::{enqueue_tracked, enqueue_tracked_for, JobContext, TrackedJobHandle, TrackedJobOwner}`. `JobContext::current()` inside a job gives `set_progress(pct, msg)`, `set_result(Value)`, `set_user_error(msg)`; no-ops for untracked runs. (source: `src/job_tracking.rs`) |
+| Scheduled tasks | `AppBuilder::tasks(Vec<TaskInfo>)`; `TaskInfo { name, schedule, coordination, handler }` with all fields public; `Schedule::{FixedDelay(Duration), Cron { expression, timezone }}` (6-field cron); `TaskCoordination::{Fleet (default), PerReplica}`; `handler: fn(AppState) -> Pin<Box<dyn Future<Output = AutumnResult<()>> + Send>>`. A plugin can build `TaskInfo` by hand. (source: `src/task.rs`, `src/app.rs`) |
+
 ## Design decisions
 
 - **No LLM SDKs**: both providers speak HTTP via `reqwest` directly.
