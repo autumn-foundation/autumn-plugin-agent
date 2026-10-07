@@ -156,3 +156,52 @@ fn api_key_present_resolves() {
     let key = AgentConfig::api_key_with(|_| Some("sk-test".to_owned())).unwrap();
     assert_eq!(key, "sk-test");
 }
+
+#[test]
+fn always_on_keys_parse_from_file_and_env() {
+    let mut config =
+        AgentConfig::from_toml_str("[agent]\nprompt_caching = false\nmax_run_secs = 120\n")
+            .unwrap();
+    assert!(!config.prompt_caching);
+    assert_eq!(config.max_run_secs, Some(120));
+    let vars = std::collections::HashMap::from([
+        ("AGENT_PROMPT_CACHING".to_owned(), "yes".to_owned()),
+        ("AGENT_MAX_RUN_SECS".to_owned(), "30".to_owned()),
+    ]);
+    config
+        .apply_env_with(|name| vars.get(name).cloned())
+        .unwrap();
+    assert!(config.prompt_caching);
+    assert_eq!(config.max_run_secs, Some(30));
+    let defaults = AgentConfig::default();
+    assert!(defaults.prompt_caching);
+    assert_eq!(defaults.max_run_secs, None);
+}
+
+#[test]
+fn always_on_keys_are_validated() {
+    assert!(AgentConfig::from_toml_str("[agent]\nmax_run_secs = 0\n").is_err());
+    assert!(AgentConfig::from_toml_str("[agent]\nmax_run_secs = 86401\n").is_err());
+    let mut config = AgentConfig::default();
+    let err = config
+        .apply_env_with(|name| (name == "AGENT_PROMPT_CACHING").then(|| "maybe".to_owned()))
+        .unwrap_err();
+    assert!(
+        err.message().contains("AGENT_PROMPT_CACHING"),
+        "{}",
+        err.message()
+    );
+    for (raw, expected) in [
+        ("1", true),
+        ("ON", true),
+        ("0", false),
+        (" off ", false),
+        ("no", false),
+    ] {
+        let mut config = AgentConfig::default();
+        config
+            .apply_env_with(|name| (name == "AGENT_PROMPT_CACHING").then(|| raw.to_owned()))
+            .unwrap();
+        assert_eq!(config.prompt_caching, expected, "{raw}");
+    }
+}

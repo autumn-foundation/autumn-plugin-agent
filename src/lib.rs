@@ -1,8 +1,14 @@
-//! Provider-agnostic LLM agent harness for Autumn.
+//! Provider-agnostic, always-on LLM agent harness for Autumn.
 //!
 //! `autumn-plugin-agent` equips an Autumn app with tool-calling agents that
 //! speak to OpenAI-compatible endpoints (OpenAI, Ollama, vLLM)
 //! or the Anthropic Messages API — no heavyweight LLM SDK required.
+//!
+//! Beyond one-shot runs, the crate has the primitives always-on agents
+//! share: persisted sessions with compaction, bounded memory, skills,
+//! approval gates with resumable state, lifecycle hooks, a loop guard,
+//! heartbeats on Autumn's scheduler, agent-scheduled follow-ups, and a
+//! delivery channel.
 //!
 //! # Quick start
 //!
@@ -54,7 +60,17 @@
 //! | [`error`] | `AgentError` + `ErrorKind` + HTTP status mapping |
 //! | [`client`] | `LlmClient` trait and both provider implementations |
 //! | [`tools`] | `Tool` trait and the handler-function adapter |
-//! | [`agent`] | The agent loop, budgets, and the `agent_run` background job |
+//! | [`agent`] | The agent loop, budgets, approvals, and `AgentRuntime` |
+//! | [`hooks`] | Lifecycle hooks around model and tool calls |
+//! | [`policy`] | Per-call allow / ask / deny decisions |
+//! | [`loop_guard`] | Repeated-call detection |
+//! | [`session`] | Persisted transcripts and compaction |
+//! | [`memory`] | Bounded memory blocks and the `memory` tool |
+//! | [`skills`] | `SKILL.md` skills and the `load_skill` tool |
+//! | [`delegate`] | Subagents as tools |
+//! | [`proactive`] | Heartbeats, follow-ups, and delivery |
+//! | [`jobs`] | The `agent_run` / `agent_resume` background jobs |
+//! | [`ids`] | `RunId` and `SessionId` |
 //! | [`plugin`] | `AgentPlugin` registration and the `AgentHandle` extractor |
 //! | [`health`] | Provider health indicator for `/actuator/health` |
 
@@ -70,18 +86,47 @@
 pub mod agent;
 pub mod client;
 pub mod config;
+pub mod delegate;
 pub mod error;
 pub mod health;
+pub mod hooks;
+pub mod ids;
+pub mod jobs;
+pub mod loop_guard;
+pub mod memory;
 pub mod plugin;
+pub mod policy;
+pub mod proactive;
+pub mod session;
+pub mod skills;
 pub mod tools;
 
-pub use agent::{Agent, AgentOutcome, AgentRunArgs, AgentRuntime, BudgetKind, enqueue_agent_run};
+#[cfg(test)]
+mod test_support;
+
+pub use agent::{
+    Agent, AgentOutcome, AgentRuntime, AgentTurn, Approval, ApprovalDecision, BudgetKind,
+    PendingCall, PendingStatus, RunState,
+};
 pub use client::{
     AnthropicClient, ChatMessage, ChatRequest, ChatResponse, ChatRole, ContentPart, LlmClient,
     OpenAiCompatibleClient, StopReason, TokenUsage, ToolDefinition, client_from_config,
 };
 pub use config::{AgentConfig, ProviderKind};
+pub use delegate::AgentTool;
 pub use error::{AgentError, ErrorKind};
 pub use health::AgentHealthIndicator;
+pub use hooks::{AgentHooks, HookAction, RunInfo, ToolOutput};
+pub use ids::{RunId, SessionId};
+pub use jobs::{
+    AgentResumeArgs, AgentRunArgs, RunOrigin, enqueue_agent_resume, enqueue_agent_resume_tracked,
+    enqueue_agent_run, enqueue_agent_run_in, enqueue_agent_run_tracked,
+};
+pub use loop_guard::LoopGuard;
+pub use memory::{InMemoryMemoryStore, MemoryBlock, MemoryOp, MemoryScope, MemoryStore};
 pub use plugin::{AgentHandle, AgentPlugin};
-pub use tools::{FnTool, Tool};
+pub use policy::{AllowAll, Rule, Strictest, ToolDecision, ToolPolicy, ToolRules};
+pub use proactive::{Delivery, HEARTBEAT_OK, Heartbeat, LogDelivery, Report, ReportSource};
+pub use session::{Compaction, InMemorySessionStore, SessionStore};
+pub use skills::Skill;
+pub use tools::{FnTool, Tool, ToolCall, ToolContext, ToolEffect};

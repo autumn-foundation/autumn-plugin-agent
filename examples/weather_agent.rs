@@ -125,6 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         AgentOutcome::BudgetExhausted { reason, .. } => {
             println!("stopped early: {reason:?}");
         }
+        other => println!("stopped: {other:?}"),
     }
     Ok(())
 }

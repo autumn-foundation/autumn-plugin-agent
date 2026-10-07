@@ -27,13 +27,27 @@ command below runs `--locked`.
 | `error` | `AgentError` (thiserror struct) + `ErrorKind`; `status_code()`; `into_autumn_error()` method (a `From` impl would clash with Autumn's blanket impl) |
 | `client` | `LlmClient` trait (boxed futures, object-safe); `OpenAiCompatibleClient`; `AnthropicClient`; `client_from_config` |
 | `tools` | `Tool` trait; `FnTool` closure adapter (the Autumn-handler bridge) |
-| `agent` | `Agent` loop, `AgentOutcome`, budgets, `truncate_history`, `AgentRuntime`, `#[job] agent_run` |
+| `agent` | `Agent` loop, `AgentOutcome`, budgets, `truncate_history`, approvals (`RunState`, `resume`), `AgentRuntime` |
+| `hooks` | `AgentHooks` lifecycle hooks |
+| `policy` | `ToolPolicy`, `ToolRules`, `Strictest` |
+| `loop_guard` | `LoopGuard` repeated-call detection |
+| `session` | `SessionStore`, `InMemorySessionStore`, `Compaction` |
+| `memory` | `MemoryStore`, `MemoryBlock`, `apply_op`, `MemoryTool` (frozen snapshot) |
+| `skills` | `Skill::parse`, `SkillTool` (`load_skill`) |
+| `delegate` | `AgentTool` subagents |
+| `proactive` | `Heartbeat` (hand-built Autumn `TaskInfo`), `Delivery`, `FollowupTool` |
+| `jobs` | `#[job] agent_run` / `agent_resume`, `AgentRunArgs`, tracked enqueue |
+| `ids` | `RunId`, `SessionId` |
 | `plugin` | `AgentPlugin` (`Plugin` impl), `apply_overrides`, `AgentHandle` extractor |
 | `health` | `AgentHealthIndicator` (`list_models` ping, health-only group) |
 
 Tests live in `src/<module>/tests.rs`. Mock providers use axum in
 `src/client/tests.rs`; the loop tests use a scripted `LlmClient` in
-`src/agent/tests.rs`. Env-touching tests hold `test_support::ENV_LOCK`.
+`src/agent/tests.rs`; other modules share `test_support::Script`. Config
+tests never touch the process env: they pass a lookup closure to
+`apply_env_with`. Background-run logic (`jobs::execute_run`,
+`Heartbeat::tick`) is testable with `AppState::detached()` and no job
+runtime. Research and design records: `docs/research/`, `docs/adr/`.
 
 ## Rules
 
@@ -48,4 +62,8 @@ Tests live in `src/<module>/tests.rs`. Mock providers use axum in
   `https://autumn-web.app/mcp` (see `docs/planning.md` for what was grounded).
 - `Plugin::build` must stay side-effect free: all IO (config load, client
   build) happens in the `on_startup` hook, which fails the boot fast.
-- Budget exhaustion is a normal `AgentOutcome`, never an `Err`.
+- Budget exhaustion, deadlines, loops, and approval pauses are normal
+  `AgentOutcome`s, never an `Err`.
+- Unattended runs (heartbeats) stay read-only unless the app opts in.
+- Memory renders once per run (frozen snapshot); never re-render the system
+  prompt mid-run — it breaks prompt caching.

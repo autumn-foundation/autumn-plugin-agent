@@ -39,8 +39,12 @@ pub enum ChatRole {
 /// One piece of a [`ChatMessage`].
 // `serde_json::Value` has no `Eq` impl (JSON numbers may be floats), so this
 // enum cannot be `Eq` either.
+//
+// Serialized externally tagged (`{"text": "..."}`, `{"tool_call": {..}}`) so
+// session stores can persist transcripts as JSON.
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ContentPart {
     /// Plain text.
     Text(String),
@@ -63,7 +67,10 @@ pub enum ContentPart {
 }
 
 /// One chat message: a role plus its content parts.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Serializable, so a [`SessionStore`](crate::session::SessionStore) can keep
+/// transcripts in a database column.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChatMessage {
     /// Who sent the message.
     pub role: ChatRole,
@@ -122,21 +129,48 @@ pub enum StopReason {
 }
 
 /// Token counts reported by the provider for one call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+///
+/// `input_tokens` is the full prompt size, cached or not. The two cache
+/// fields are subsets of it: they tell you how much of the prompt the
+/// provider served from (or wrote to) its prompt cache.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct TokenUsage {
-    /// Prompt tokens consumed.
+    /// Prompt tokens consumed, including cached tokens.
     pub input_tokens: u32,
     /// Completion tokens produced.
     pub output_tokens: u32,
+    /// Prompt tokens read from the provider's prompt cache.
+    #[serde(default)]
+    pub cache_read_tokens: u32,
+    /// Prompt tokens written to the provider's prompt cache.
+    #[serde(default)]
+    pub cache_write_tokens: u32,
 }
 
 impl TokenUsage {
+    /// Usage with uncached input and output counts.
+    #[must_use]
+    pub const fn new(input_tokens: u32, output_tokens: u32) -> Self {
+        Self {
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+        }
+    }
+
     /// Add two usages without overflowing.
     #[must_use]
     pub const fn saturating_add(self, other: Self) -> Self {
         Self {
             input_tokens: self.input_tokens.saturating_add(other.input_tokens),
             output_tokens: self.output_tokens.saturating_add(other.output_tokens),
+            cache_read_tokens: self
+                .cache_read_tokens
+                .saturating_add(other.cache_read_tokens),
+            cache_write_tokens: self
+                .cache_write_tokens
+                .saturating_add(other.cache_write_tokens),
         }
     }
 
@@ -185,9 +219,9 @@ pub trait LlmClient: Send + Sync + std::fmt::Debug {
 ///
 /// # Errors
 ///
-/// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+/// Returns [`AgentError`] with [`ErrorKind::Config`]
 /// when `AGENT_API_KEY` is not set, or with
-/// [`ErrorKind::Transport`](crate::error::ErrorKind::Transport) when the HTTP
+/// [`ErrorKind::Transport`] when the HTTP
 /// client cannot be built.
 pub fn client_from_config(config: &AgentConfig) -> Result<Arc<dyn LlmClient>, AgentError> {
     let api_key = config.api_key()?;
@@ -209,9 +243,11 @@ pub(crate) fn client_from_config_with_key(
         crate::config::ProviderKind::OpenAiCompatible => {
             Arc::new(OpenAiCompatibleClient::new(base_url, model, api_key)?.with_timeout(timeout)?)
         }
-        crate::config::ProviderKind::Anthropic => {
-            Arc::new(AnthropicClient::new(base_url, model, api_key)?.with_timeout(timeout)?)
-        }
+        crate::config::ProviderKind::Anthropic => Arc::new(
+            AnthropicClient::new(base_url, model, api_key)?
+                .with_timeout(timeout)?
+                .with_prompt_caching(config.prompt_caching),
+        ),
     };
     Ok(client)
 }
@@ -253,6 +289,14 @@ fn model_ids(payload: &serde_json::Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Read one non-negative integer usage field, defaulting to 0.
+fn usage_field(usage: &serde_json::Value, key: &str) -> u32 {
+    usage
+        .get(key)
+        .and_then(serde_json::Value::as_u64)
+        .map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX))
 }
 
 /// Build a `reqwest` client with a timeout.
@@ -538,19 +582,17 @@ fn openai_response(payload: &serde_json::Value) -> Result<ChatResponse, AgentErr
         Some("stop") => StopReason::EndTurn,
         _ => StopReason::Unknown,
     };
+    // OpenAI caches long prompts on its own and reports the cached share
+    // in `prompt_tokens_details.cached_tokens` (a subset of `prompt_tokens`).
     let usage = payload
         .get("usage")
         .map(|usage| TokenUsage {
-            input_tokens: usage
-                .get("prompt_tokens")
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok())
-                .unwrap_or(0),
-            output_tokens: usage
-                .get("completion_tokens")
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok())
-                .unwrap_or(0),
+            input_tokens: usage_field(usage, "prompt_tokens"),
+            output_tokens: usage_field(usage, "completion_tokens"),
+            cache_read_tokens: usage
+                .get("prompt_tokens_details")
+                .map_or(0, |details| usage_field(details, "cached_tokens")),
+            cache_write_tokens: 0,
         })
         .unwrap_or_default();
     Ok(ChatResponse {
@@ -561,11 +603,16 @@ fn openai_response(payload: &serde_json::Value) -> Result<ChatResponse, AgentErr
 }
 
 /// Client for the Anthropic Messages API.
+///
+/// Prompt caching is on by default: the client marks the tool list, the
+/// system prompt, and the newest message as cache breakpoints, so each loop
+/// step and each scheduled run re-reads the stable prefix from the cache.
 pub struct AnthropicClient {
     http: reqwest::Client,
     base_url: String,
     model: String,
     api_key: String,
+    prompt_caching: bool,
 }
 
 impl std::fmt::Debug for AnthropicClient {
@@ -573,6 +620,7 @@ impl std::fmt::Debug for AnthropicClient {
         f.debug_struct("AnthropicClient")
             .field("base_url", &self.base_url)
             .field("model", &self.model)
+            .field("prompt_caching", &self.prompt_caching)
             .field("api_key", &"<redacted>")
             .finish_non_exhaustive()
     }
@@ -597,6 +645,7 @@ impl AnthropicClient {
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             model: model.into(),
             api_key: api_key.into(),
+            prompt_caching: true,
         })
     }
 
@@ -610,6 +659,13 @@ impl AnthropicClient {
         Ok(self)
     }
 
+    /// Turn the `cache_control` breakpoints on or off.
+    #[must_use]
+    pub const fn with_prompt_caching(mut self, enabled: bool) -> Self {
+        self.prompt_caching = enabled;
+        self
+    }
+
     /// Messages endpoint URL.
     #[must_use]
     pub fn messages_url(&self) -> String {
@@ -617,15 +673,27 @@ impl AnthropicClient {
     }
 
     async fn chat_inner(&self, request: &ChatRequest) -> Result<ChatResponse, AgentError> {
-        let (system, messages) = anthropic_messages(&request.messages);
+        let (system, mut messages) = anthropic_messages(&request.messages);
+        let mut tools = request.tools.iter().map(anthropic_tool).collect::<Vec<_>>();
+        if self.prompt_caching {
+            mark_cache_breakpoints(&mut tools, &mut messages);
+        }
         let mut body = serde_json::json!({
             "model": self.model,
             "max_tokens": request.max_tokens.unwrap_or(1024),
             "messages": messages,
-            "tools": request.tools.iter().map(anthropic_tool).collect::<Vec<_>>(),
+            "tools": tools,
         });
         if let Some(system) = system {
-            body["system"] = serde_json::Value::String(system);
+            body["system"] = if self.prompt_caching {
+                serde_json::json!([{
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }])
+            } else {
+                serde_json::Value::String(system)
+            };
         }
         if let Some(temperature) = request.temperature {
             body["temperature"] = serde_json::json!(temperature);
@@ -736,6 +804,27 @@ fn anthropic_messages(messages: &[ChatMessage]) -> (Option<String>, Vec<serde_js
     (system, out)
 }
 
+/// Mark the last tool and the last block of the newest message as
+/// `cache_control` breakpoints.
+///
+/// With the system breakpoint that makes three of Anthropic's four allowed
+/// breakpoints. The prefix up to each breakpoint is cached, so the next loop
+/// step pays full price only for the new turn.
+fn mark_cache_breakpoints(tools: &mut [serde_json::Value], messages: &mut [serde_json::Value]) {
+    let ephemeral = serde_json::json!({"type": "ephemeral"});
+    if let Some(serde_json::Value::Object(tool)) = tools.last_mut() {
+        tool.insert("cache_control".to_owned(), ephemeral.clone());
+    }
+    if let Some(serde_json::Value::Object(block)) = messages
+        .last_mut()
+        .and_then(|message| message.get_mut("content"))
+        .and_then(serde_json::Value::as_array_mut)
+        .and_then(|blocks| blocks.last_mut())
+    {
+        block.insert("cache_control".to_owned(), ephemeral);
+    }
+}
+
 /// Convert a tool definition to the Anthropic `input_schema` shape.
 fn anthropic_tool(tool: &ToolDefinition) -> serde_json::Value {
     serde_json::json!({
@@ -798,19 +887,22 @@ fn anthropic_response(payload: &serde_json::Value) -> Result<ChatResponse, Agent
         Some("end_turn") => StopReason::EndTurn,
         _ => StopReason::Unknown,
     };
+    // Anthropic reports `input_tokens` without the cached share; add the
+    // cache reads and writes back so `input_tokens` is the full prompt size
+    // on both providers and budgets stay honest.
     let usage = payload
         .get("usage")
-        .map(|usage| TokenUsage {
-            input_tokens: usage
-                .get("input_tokens")
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok())
-                .unwrap_or(0),
-            output_tokens: usage
-                .get("output_tokens")
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok())
-                .unwrap_or(0),
+        .map(|usage| {
+            let cache_read_tokens = usage_field(usage, "cache_read_input_tokens");
+            let cache_write_tokens = usage_field(usage, "cache_creation_input_tokens");
+            TokenUsage {
+                input_tokens: usage_field(usage, "input_tokens")
+                    .saturating_add(cache_read_tokens)
+                    .saturating_add(cache_write_tokens),
+                output_tokens: usage_field(usage, "output_tokens"),
+                cache_read_tokens,
+                cache_write_tokens,
+            }
         })
         .unwrap_or_default();
     Ok(ChatResponse {
