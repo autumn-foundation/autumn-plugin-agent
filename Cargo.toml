@@ -1,9 +1,9 @@
 [package]
 name = "autumn-plugin-agent"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.88"
-description = "Autumn plugin: provider-agnostic LLM agent harness with tool calling (OpenAI-compatible and Anthropic)."
+description = "Autumn plugin: provider-agnostic, always-on LLM agent harness (tool calling, sessions, memory, approvals, heartbeats) for OpenAI-compatible and Anthropic APIs."
 license = "Apache-2.0"
 repository = "https://github.com/madmax983/autumn-plugin-agent"
 readme = "README.md"
@@ -26,6 +26,8 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["std"] }
 thiserror = "2"
+# Wall-clock run deadlines. Autumn already runs on Tokio.
+tokio = { version = "1", default-features = false, features = ["time"] }
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 

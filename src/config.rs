@@ -126,6 +126,11 @@ pub struct AgentConfig {
     pub max_tokens: u32,
     /// System prompt prepended to every agent run, if set.
     pub system_prompt: Option<String>,
+    /// Mark Anthropic prompt-cache breakpoints. On by default; OpenAI caches
+    /// on its own and ignores this.
+    pub prompt_caching: bool,
+    /// Wall-clock limit for one agent run in seconds, or `None` for no limit.
+    pub max_run_secs: Option<u64>,
 }
 
 impl Default for AgentConfig {
@@ -138,6 +143,8 @@ impl Default for AgentConfig {
             max_steps: 10,
             max_tokens: 32_000,
             system_prompt: None,
+            prompt_caching: true,
+            max_run_secs: None,
         }
     }
 }
@@ -157,6 +164,8 @@ struct RawAgentConfig {
     max_steps: Option<u32>,
     max_tokens: Option<u32>,
     system_prompt: Option<String>,
+    prompt_caching: Option<bool>,
+    max_run_secs: Option<u64>,
 }
 
 impl AgentConfig {
@@ -168,7 +177,7 @@ impl AgentConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when the file cannot be read or parsed, an `AGENT_*` variable has an
     /// invalid value, or the merged configuration fails validation.
     pub fn load() -> Result<Self, AgentError> {
@@ -196,7 +205,7 @@ impl AgentConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when the document is not valid TOML, `[agent]` is not a table, the
     /// table sets `api_key`/`api-key` (fail-closed: the key must come from
     /// `AGENT_API_KEY`), or a field fails validation.
@@ -247,6 +256,12 @@ impl AgentConfig {
         if let Some(prompt) = raw.system_prompt {
             config.system_prompt = Some(prompt);
         }
+        if let Some(caching) = raw.prompt_caching {
+            config.prompt_caching = caching;
+        }
+        if let Some(secs) = raw.max_run_secs {
+            config.max_run_secs = Some(secs);
+        }
         config.validate()?;
         Ok(config)
     }
@@ -255,11 +270,12 @@ impl AgentConfig {
     ///
     /// Recognised: `AGENT_PROVIDER`, `AGENT_MODEL`, `AGENT_BASE_URL`,
     /// `AGENT_REQUEST_TIMEOUT_SECS`, `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`,
-    /// `AGENT_SYSTEM_PROMPT`. Unset variables leave the value alone.
+    /// `AGENT_SYSTEM_PROMPT`, `AGENT_PROMPT_CACHING` (`true`/`false`),
+    /// `AGENT_MAX_RUN_SECS`. Unset variables leave the value alone.
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when a set variable has an invalid value (unknown provider, malformed
     /// number, or a number that does not fit its field).
     pub fn apply_env(&mut self) -> Result<(), AgentError> {
@@ -302,6 +318,12 @@ impl AgentConfig {
         if let Some(prompt) = get("AGENT_SYSTEM_PROMPT") {
             self.system_prompt = Some(prompt);
         }
+        if let Some(raw) = get("AGENT_PROMPT_CACHING") {
+            self.prompt_caching = parse_env_bool("AGENT_PROMPT_CACHING", &raw)?;
+        }
+        if let Some(raw) = get("AGENT_MAX_RUN_SECS") {
+            self.max_run_secs = Some(parse_env_u64("AGENT_MAX_RUN_SECS", &raw)?);
+        }
         Ok(())
     }
 
@@ -311,7 +333,7 @@ impl AgentConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when `AGENT_API_KEY` is not set.
     pub fn api_key(&self) -> Result<String, AgentError> {
         Self::api_key_with(|name| std::env::var(name).ok())
@@ -324,7 +346,7 @@ impl AgentConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when `get("AGENT_API_KEY")` returns [`None`].
     pub(crate) fn api_key_with(get: impl Fn(&str) -> Option<String>) -> Result<String, AgentError> {
         get("AGENT_API_KEY").ok_or_else(|| {
@@ -340,7 +362,7 @@ impl AgentConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`AgentError`] with [`ErrorKind::Config`](crate::error::ErrorKind::Config)
+    /// Returns [`AgentError`] with [`ErrorKind::Config`]
     /// when any field is out of its accepted range or malformed.
     pub fn validate(&self) -> Result<(), AgentError> {
         if self.request_timeout_secs == 0 || self.request_timeout_secs > 3_600 {
@@ -359,6 +381,14 @@ impl AgentConfig {
             return Err(AgentError::new(
                 ErrorKind::Config,
                 "max_tokens must be between 1000 and 1000000",
+            ));
+        }
+        if let Some(secs) = self.max_run_secs
+            && (secs == 0 || secs > 86_400)
+        {
+            return Err(AgentError::new(
+                ErrorKind::Config,
+                "max_run_secs must be between 1 and 86400",
             ));
         }
         if let Some(model) = self.model.as_deref()
@@ -409,6 +439,18 @@ fn parse_env_u64(name: &str, raw: &str) -> Result<u64, AgentError> {
             format!("{name} must be a non-negative integer, got {raw:?}"),
         )
     })
+}
+
+/// Parse a `AGENT_*` boolean variable, naming the variable on failure.
+fn parse_env_bool(name: &str, raw: &str) -> Result<bool, AgentError> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(AgentError::new(
+            ErrorKind::Config,
+            format!("{name} must be true or false, got {raw:?}"),
+        )),
+    }
 }
 
 #[cfg(test)]

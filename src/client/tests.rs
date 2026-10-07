@@ -268,9 +268,97 @@ async fn anthropic_request_shape() {
         messages(Json(body)).await
     }
     let base = mock_server(Router::new().route("/v1/messages", post(authed))).await;
-    let client = AnthropicClient::new(base, "claude-sonnet-4-5", "secret-key").unwrap();
+    let client = AnthropicClient::new(base, "claude-sonnet-4-5", "secret-key")
+        .unwrap()
+        .with_prompt_caching(false);
     let response = client.chat(&chat_request()).await.unwrap();
     assert_eq!(response.stop_reason, StopReason::EndTurn);
+}
+
+#[tokio::test]
+async fn anthropic_prompt_caching_marks_breakpoints_and_counts_cache_tokens() {
+    // Axum requires handlers to be `async fn`; this one only asserts.
+    #[allow(clippy::unused_async)]
+    async fn messages(Json(body): Json<Value>) -> Json<Value> {
+        let ephemeral = json!({"type": "ephemeral"});
+        assert_eq!(body["system"][0]["type"], json!("text"));
+        assert_eq!(body["system"][0]["text"], json!("You are a weather bot."));
+        assert_eq!(body["system"][0]["cache_control"], ephemeral);
+        let tools = body["tools"].as_array().unwrap();
+        assert_eq!(tools.last().unwrap()["cache_control"], ephemeral);
+        let messages = body["messages"].as_array().unwrap();
+        let last_block = messages.last().unwrap()["content"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap();
+        assert_eq!(last_block["cache_control"], ephemeral);
+        Json(json!({
+            "content": [{"type": "text", "text": "done"}],
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 10,
+                "cache_creation_input_tokens": 100,
+                "cache_read_input_tokens": 1000,
+                "output_tokens": 5
+            }
+        }))
+    }
+    let base = mock_server(Router::new().route("/v1/messages", post(messages))).await;
+    let client = AnthropicClient::new(base, "claude-sonnet-4-5", "key").unwrap();
+    assert!(format!("{client:?}").contains("prompt_caching: true"));
+    let response = client.chat(&chat_request()).await.unwrap();
+    assert_eq!(response.usage.input_tokens, 1_110);
+    assert_eq!(response.usage.cache_read_tokens, 1_000);
+    assert_eq!(response.usage.cache_write_tokens, 100);
+    assert_eq!(response.usage.output_tokens, 5);
+}
+
+#[tokio::test]
+async fn openai_reports_cached_prompt_tokens() {
+    async fn chat() -> Json<Value> {
+        Json(json!({
+            "choices": [{"message": {"role": "assistant", "content": "ok"},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 2000, "completion_tokens": 7,
+                      "prompt_tokens_details": {"cached_tokens": 1536}}
+        }))
+    }
+    let base = mock_server(Router::new().route("/chat/completions", post(chat))).await;
+    let client = OpenAiCompatibleClient::new(base, "gpt-4o-mini", "key").unwrap();
+    let response = client.chat(&chat_request()).await.unwrap();
+    assert_eq!(response.usage.input_tokens, 2_000);
+    assert_eq!(response.usage.cache_read_tokens, 1_536);
+    assert_eq!(response.usage.cache_write_tokens, 0);
+}
+
+#[test]
+fn transcripts_round_trip_through_json() {
+    let messages = vec![
+        ChatMessage::text(ChatRole::User, "hi"),
+        ChatMessage {
+            role: ChatRole::Assistant,
+            content: vec![
+                ContentPart::Text("checking".to_owned()),
+                ContentPart::ToolCall {
+                    id: "c1".to_owned(),
+                    name: "get_weather".to_owned(),
+                    arguments: json!({"city": "Oslo"}),
+                },
+            ],
+        },
+        ChatMessage {
+            role: ChatRole::Tool,
+            content: vec![ContentPart::ToolResult {
+                tool_call_id: "c1".to_owned(),
+                content: "{\"temp\":3}".to_owned(),
+            }],
+        },
+    ];
+    let text = serde_json::to_string(&messages).unwrap();
+    assert!(text.contains("\"tool_call\""), "{text}");
+    let back: Vec<ChatMessage> = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, messages);
 }
 
 #[tokio::test]
@@ -329,7 +417,11 @@ fn token_usage_saturates() {
     let usage = TokenUsage {
         input_tokens: u32::MAX,
         output_tokens: u32::MAX,
+        cache_read_tokens: u32::MAX,
+        cache_write_tokens: 1,
     };
     let sum = usage.saturating_add(usage);
     assert_eq!(sum.total(), u32::MAX);
+    assert_eq!(sum.cache_read_tokens, u32::MAX);
+    assert_eq!(sum.cache_write_tokens, 2);
 }

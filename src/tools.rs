@@ -18,8 +18,73 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
 use crate::client::ToolDefinition;
 use crate::error::AgentError;
+use crate::ids::{RunId, SessionId};
+
+/// What a tool can change. Policies use it to gate calls.
+///
+/// The variants are ordered from least to most impact, so
+/// `effect <= ToolEffect::Internal` reads as "safe for an unattended run".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolEffect {
+    /// Reads data. Changes nothing.
+    ReadOnly,
+    /// Changes only the agent's own private state (memory, notes, its own
+    /// follow-ups). Nobody else sees the change.
+    Internal,
+    /// Changes app data other people can see.
+    Write,
+    /// Acts outside the app: sends mail, calls a third-party API, spends
+    /// money.
+    External,
+}
+
+/// One tool call the model asked for.
+// `arguments` is a `serde_json::Value`, which has no `Eq` impl.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolCall {
+    /// Provider-assigned call id.
+    pub id: String,
+    /// Name of the tool to run.
+    pub name: String,
+    /// Decoded JSON arguments.
+    pub arguments: serde_json::Value,
+}
+
+/// Per-call context the agent loop hands to [`Tool::execute`].
+///
+/// Use `run_id` + `call_id` as an idempotency key for tools with side
+/// effects: a retried job re-runs the loop, and the key lets the tool detect
+/// a duplicate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolContext {
+    /// The run that issued the call.
+    pub run_id: RunId,
+    /// The provider-assigned id of this tool call.
+    pub call_id: String,
+    /// The session the run belongs to, if any.
+    pub session_id: Option<SessionId>,
+    /// The loop step (0-based) that issued the call.
+    pub step: u32,
+}
+
+impl ToolContext {
+    /// A context for calling a tool outside an agent run (tests, handlers).
+    #[must_use]
+    pub fn detached(call_id: impl Into<String>) -> Self {
+        Self {
+            run_id: RunId::new("detached"),
+            call_id: call_id.into(),
+            session_id: None,
+            step: 0,
+        }
+    }
+}
 
 /// A function the agent may call.
 ///
@@ -36,10 +101,17 @@ pub trait Tool: Send + Sync + std::fmt::Debug {
     fn input_schema(&self) -> serde_json::Value;
 
     /// Run the tool against decoded JSON arguments.
-    fn execute(
-        &self,
+    fn execute<'a>(
+        &'a self,
         input: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentError>> + Send + '_>>;
+        ctx: &'a ToolContext,
+    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentError>> + Send + 'a>>;
+
+    /// What the tool can change. Defaults to [`ToolEffect::Write`]: a tool
+    /// is trusted with less only when it says so.
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::Write
+    }
 
     /// Bundle the metadata the model sees into a [`ToolDefinition`].
     fn definition(&self) -> ToolDefinition {
@@ -51,10 +123,12 @@ pub trait Tool: Send + Sync + std::fmt::Debug {
     }
 }
 
-/// The boxed closure behind [`FnTool`]: JSON in, JSON or an [`AgentError`] out.
+/// The boxed closure behind [`FnTool`]: JSON and context in, JSON or an
+/// [`AgentError`] out.
 type ToolFn = Box<
     dyn Fn(
             serde_json::Value,
+            ToolContext,
         ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentError>> + Send>>
         + Send
         + Sync,
@@ -87,6 +161,7 @@ pub struct FnTool {
     name: String,
     description: String,
     schema: serde_json::Value,
+    effect: ToolEffect,
     run: ToolFn,
 }
 
@@ -95,6 +170,7 @@ impl std::fmt::Debug for FnTool {
         f.debug_struct("FnTool")
             .field("name", &self.name)
             .field("description", &self.description)
+            .field("effect", &self.effect)
             .finish_non_exhaustive()
     }
 }
@@ -103,7 +179,7 @@ impl FnTool {
     /// Wrap an async function as a tool.
     ///
     /// The function receives the decoded JSON arguments and returns JSON.
-    /// Return [`ErrorKind::Tool`] errors for domain failures so the agent
+    /// Return [`ErrorKind::Tool`](crate::error::ErrorKind::Tool) errors for domain failures so the agent
     /// loop reports them back to the model instead of aborting the run.
     pub fn new<F, Fut>(
         name: impl Into<String>,
@@ -119,8 +195,40 @@ impl FnTool {
             name: name.into(),
             description: description.into(),
             schema,
-            run: Box::new(move |input| Box::pin(run(input))),
+            effect: ToolEffect::Write,
+            run: Box::new(move |input, _ctx| Box::pin(run(input))),
         }
+    }
+
+    /// Wrap an async function that also wants the [`ToolContext`].
+    ///
+    /// Use it when the tool needs the run id or call id, for example as an
+    /// idempotency key.
+    pub fn with_context<F, Fut>(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        schema: serde_json::Value,
+        run: F,
+    ) -> Self
+    where
+        F: Fn(serde_json::Value, ToolContext) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<serde_json::Value, AgentError>> + Send + 'static,
+    {
+        Self {
+            name: name.into(),
+            description: description.into(),
+            schema,
+            effect: ToolEffect::Write,
+            run: Box::new(move |input, ctx| Box::pin(run(input, ctx))),
+        }
+    }
+
+    /// Declare what the tool can change. The default is
+    /// [`ToolEffect::Write`].
+    #[must_use]
+    pub const fn effect(mut self, effect: ToolEffect) -> Self {
+        self.effect = effect;
+        self
     }
 
     /// Share the tool between the plugin registry and direct use.
@@ -143,11 +251,16 @@ impl Tool for FnTool {
         self.schema.clone()
     }
 
-    fn execute(
-        &self,
+    fn execute<'a>(
+        &'a self,
         input: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentError>> + Send + '_>> {
-        (self.run)(input)
+        ctx: &'a ToolContext,
+    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentError>> + Send + 'a>> {
+        (self.run)(input, ctx.clone())
+    }
+
+    fn effect(&self) -> ToolEffect {
+        self.effect
     }
 }
 
