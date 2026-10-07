@@ -965,7 +965,7 @@ async fn long_sessions_compact_before_the_run() {
     ));
     assert!(saved.len() < history.len());
     // The summary call ran without tools.
-    assert!(client.requests()[0].tools.is_empty());
+    assert_eq!(client.requests()[0].tools, Vec::new());
 }
 
 #[tokio::test]

@@ -97,7 +97,7 @@ async fn store_scopes_are_isolated_and_start_from_the_template() {
     let alice_blocks = store.load(&alice).await.unwrap();
     let bob_blocks = store.load(&bob).await.unwrap();
     assert_eq!(alice_blocks[0].entries, vec!["prefers mornings"]);
-    assert!(bob_blocks[0].entries.is_empty());
+    assert_eq!(bob_blocks[0].entries, Vec::<String>::new());
     assert_eq!(bob_blocks.len(), 2);
     let err = store
         .apply(

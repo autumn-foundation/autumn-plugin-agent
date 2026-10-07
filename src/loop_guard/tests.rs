@@ -64,7 +64,7 @@ fn disabled_guard_never_fires() {
             LoopVerdict::Ok
         );
     }
-    assert!(tracker.saved().is_empty());
+    assert_eq!(tracker.saved(), Vec::<u64>::new());
 }
 
 #[test]

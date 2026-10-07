@@ -14,10 +14,13 @@ fn turn(i: usize, size: usize) -> [ChatMessage; 2] {
 async fn store_round_trips_and_isolates_sessions() {
     let store = InMemorySessionStore::new().shared();
     let one = SessionId::new("one");
-    assert!(store.load(&one).await.unwrap().is_empty());
+    assert_eq!(store.load(&one).await.unwrap(), Vec::new());
     store.save(&one, &turn(0, 1)).await.unwrap();
     assert_eq!(store.load(&one).await.unwrap().len(), 2);
-    assert!(store.load(&SessionId::new("two")).await.unwrap().is_empty());
+    assert_eq!(
+        store.load(&SessionId::new("two")).await.unwrap(),
+        Vec::new()
+    );
 }
 
 #[tokio::test]
@@ -62,7 +65,7 @@ async fn compaction_folds_the_head_into_one_summary() {
     assert_eq!(report.usage, TokenUsage::new(10, 5));
     let request = &client.requests()[0];
     assert_eq!(request.max_tokens, Some(64));
-    assert!(request.tools.is_empty());
+    assert_eq!(request.tools, Vec::new());
 }
 
 #[tokio::test]

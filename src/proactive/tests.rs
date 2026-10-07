@@ -262,7 +262,7 @@ async fn precheck_skips_the_model_call() {
         .await
         .unwrap();
     assert!(outcome.is_none());
-    assert!(client.requests().is_empty());
+    assert_eq!(client.requests(), Vec::new());
 }
 
 #[tokio::test]
