@@ -28,7 +28,9 @@ jobs:
           TMPDIR: ${{ runner.temp }}
       - name: no autumn-web without the autumn feature
         run: |
-          if cargo tree --locked --no-default-features -e normal --prefix none | grep -q '^autumn-web '; then
+          set -euo pipefail
+          tree="$(cargo tree --locked --no-default-features -e normal --prefix none)"
+          if grep -q '^autumn-web ' <<<"$tree"; then
             echo "autumn-web is in the no-default dependency graph" >&2
             exit 1
           fi

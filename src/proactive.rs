@@ -2,7 +2,7 @@
 //!
 //! An always-on agent wakes up by itself. This module gives it three ways:
 //!
-//! * **Heartbeat** — a [`Heartbeat`] registers an Autumn scheduled task
+//! * **Heartbeat** — a `Heartbeat` registers an Autumn scheduled task
 //!   (fixed delay or cron). Each tick runs the agent with a check-in prompt.
 //!   If nothing needs attention, the agent answers [`HEARTBEAT_OK`] and the
 //!   harness stays silent. Heartbeats run with read-only tools by default:
@@ -16,6 +16,9 @@
 //! Whatever a background run has to say goes to a [`Delivery`]: the app's
 //! bridge to mail, chat, push, or an in-app inbox. [`LogDelivery`] is the
 //! default.
+//!
+//! The heartbeat and follow-ups need the `autumn` feature. `Delivery`,
+//! `Report` and `report_text` do not.
 
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -129,3 +132,6 @@ mod background;
 pub use background::{FollowupTool, Heartbeat, HeartbeatSchedule, Precheck};
 #[cfg(feature = "autumn")]
 pub(crate) use background::{HeartbeatSettings, deliver_outcome};
+
+#[cfg(test)]
+mod core_tests;

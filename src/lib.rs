@@ -69,14 +69,14 @@
 //! | [`skills`] | `SKILL.md` skills and the `load_skill` tool |
 //! | [`delegate`] | Subagents as tools |
 //! | [`proactive`] | Heartbeats, follow-ups, and delivery |
-//! | [`jobs`] | The `agent_run` / `agent_resume` background jobs |
+//! | `jobs` | The `agent_run` / `agent_resume` background jobs |
 //! | [`ids`] | `RunId` and `SessionId` |
-//! | [`plugin`] | `AgentPlugin` registration and the `AgentHandle` extractor |
-//! | [`health`] | Provider health indicator for `/actuator/health` |
+//! | `plugin` | `AgentPlugin` registration and the `AgentHandle` extractor |
+//! | `health` | Provider health indicator for `/actuator/health` |
 //!
 //! # Features
 //!
-//! `autumn` (default) adds [`plugin`], [`jobs`], [`health`], the heartbeat
+//! `autumn` (default) adds `plugin`, `jobs`, `health`, the heartbeat
 //! and follow-ups. It needs `autumn-web`. Without it, the agent core builds
 //! with no `autumn-web` dependency.
 

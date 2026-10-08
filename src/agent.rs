@@ -11,7 +11,7 @@
 //! ([`Agent::run_in_session`]). A run paused for approval resumes with
 //! [`Agent::resume`].
 //!
-//! [`enqueue_agent_run`] exposes the same loop as an Autumn background job.
+//! `enqueue_agent_run` exposes the same loop as an Autumn background job.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -1253,11 +1253,11 @@ fn truncate_chars(text: &str, limit: usize) -> String {
     format!("{kept}…[truncated]")
 }
 
-/// Shared agent state installed on [`AppState`](autumn_web::AppState) by the
+/// Shared agent state installed on `AppState` by the
 /// plugin.
 ///
 /// Handlers reach it through the
-/// [`AgentHandle`](crate::plugin::AgentHandle) extractor; the background
+/// `AgentHandle` extractor; the background
 /// jobs and the heartbeat read it directly.
 #[derive(Debug, Clone)]
 pub struct AgentRuntime {
