@@ -30,7 +30,8 @@ pub enum ErrorKind {
     /// The HTTP transport failed before a response arrived.
     Transport,
     /// The provider answered with a timeout, a server error, or an overload
-    /// (408, 5xx, or 529). The request did not run, and a retry can succeed.
+    /// (408, 5xx, or 529). A retry can succeed. The provider may still have
+    /// run, and billed, the failed request.
     Unavailable,
     /// A tool failed while executing.
     Tool,
