@@ -11,7 +11,7 @@
 //! ([`Agent::run_in_session`]). A run paused for approval resumes with
 //! [`Agent::resume`].
 //!
-//! [`enqueue_agent_run`] exposes the same loop as an Autumn background job.
+//! `enqueue_agent_run` exposes the same loop as an Autumn background job.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,7 +29,9 @@ use crate::ids::{RunId, SessionId};
 use crate::loop_guard::{LoopGuard, LoopTracker, LoopVerdict, warning_note};
 use crate::memory::{MemoryScope, MemoryStore, MemoryTool, render_snapshot};
 use crate::policy::{AllowAll, ToolDecision, ToolPolicy};
-use crate::proactive::{Delivery, FollowupTool, LogDelivery};
+#[cfg(feature = "autumn")]
+use crate::proactive::FollowupTool;
+use crate::proactive::{Delivery, LogDelivery};
 use crate::session::{Compaction, CompactionReport, SessionStore, compact};
 use crate::skills::{Skill, SkillTool, render_index};
 use crate::tools::{Tool, ToolCall, ToolContext};
@@ -1251,11 +1253,11 @@ fn truncate_chars(text: &str, limit: usize) -> String {
     format!("{kept}…[truncated]")
 }
 
-/// Shared agent state installed on [`AppState`](autumn_web::AppState) by the
+/// Shared agent state installed on `AppState` by the
 /// plugin.
 ///
 /// Handlers reach it through the
-/// [`AgentHandle`](crate::plugin::AgentHandle) extractor; the background
+/// `AgentHandle` extractor; the background
 /// jobs and the heartbeat read it directly.
 #[derive(Debug, Clone)]
 pub struct AgentRuntime {
@@ -1269,6 +1271,7 @@ pub struct AgentRuntime {
     skills: Arc<[Skill]>,
     compaction: Option<Compaction>,
     delivery: Arc<dyn Delivery>,
+    #[cfg(feature = "autumn")]
     followups: Option<Duration>,
 }
 
@@ -1291,6 +1294,7 @@ impl AgentRuntime {
             skills: Arc::from(Vec::new()),
             compaction: None,
             delivery: Arc::new(LogDelivery),
+            #[cfg(feature = "autumn")]
             followups: None,
         }
     }
@@ -1345,6 +1349,7 @@ impl AgentRuntime {
     }
 
     /// Give agents the `schedule_followup` tool, with this maximum delay.
+    #[cfg(feature = "autumn")]
     #[must_use]
     pub const fn with_followups(mut self, max_delay: Duration) -> Self {
         self.followups = Some(max_delay);
@@ -1366,6 +1371,7 @@ impl AgentRuntime {
     }
 
     /// Build an agent for a run that is `followup_depth` follow-ups deep.
+    #[cfg_attr(not(feature = "autumn"), allow(unused_variables))]
     pub(crate) fn agent_with(&self, scope: MemoryScope, followup_depth: u32) -> Agent {
         let mut agent = Agent::new(Arc::clone(&self.client))
             .tools(self.tools.clone())
@@ -1382,6 +1388,7 @@ impl AgentRuntime {
         if let Some(secs) = self.config.max_run_secs {
             agent = agent.max_duration(Duration::from_secs(secs));
         }
+        #[cfg(feature = "autumn")]
         if let Some(max_delay) = self.followups {
             agent = agent.tool(Arc::new(
                 FollowupTool::new(max_delay)
@@ -1444,6 +1451,7 @@ impl AgentRuntime {
     }
 }
 
+#[cfg(feature = "autumn")]
 pub use crate::jobs::{AgentRunArgs, enqueue_agent_run};
 
 #[cfg(test)]

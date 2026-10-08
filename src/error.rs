@@ -2,8 +2,8 @@
 //!
 //! Every failure the plugin can produce carries an [`ErrorKind`]. The kind
 //! maps to an HTTP status code through [`ErrorKind::status_code`], and to an
-//! [`AutumnError`](autumn_web::AutumnError) through
-//! [`AgentError::into_autumn_error`] (a method, not a `From` impl, because
+//! `AutumnError` through
+//! `AgentError::into_autumn_error` (a method, not a `From` impl, because
 //! Autumn already provides a blanket `From<E: Error>` that would conflict).
 //! Handlers and jobs translate agent failures into framework responses with
 //! one call.
@@ -29,6 +29,10 @@ pub enum ErrorKind {
     Provider,
     /// The HTTP transport failed before a response arrived.
     Transport,
+    /// The provider answered with a timeout, a server error, or an overload
+    /// (408, 5xx, or 529). A retry can succeed. The provider may still have
+    /// run, and billed, the failed request.
+    Unavailable,
     /// A tool failed while executing.
     Tool,
     /// A budget (steps, tokens, or context window) overflowed.
@@ -48,7 +52,7 @@ impl ErrorKind {
             Self::Config | Self::Tool | Self::Decode => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Authentication | Self::Provider => StatusCode::BAD_GATEWAY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
-            Self::Transport => StatusCode::SERVICE_UNAVAILABLE,
+            Self::Transport | Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
             Self::Budget => StatusCode::PAYLOAD_TOO_LARGE,
         }
     }
@@ -116,6 +120,7 @@ impl AgentError {
     /// [`AutumnError::with_status`](autumn_web::AutumnError::with_status).
     /// This is a method rather than a `From` impl because Autumn ships a
     /// blanket `From<E: Error>` for `AutumnError` that would conflict.
+    #[cfg(feature = "autumn")]
     #[must_use]
     pub fn into_autumn_error(self) -> autumn_web::AutumnError {
         let message = self.to_string();
@@ -129,7 +134,9 @@ impl AgentError {
             }
             ErrorKind::RateLimited => autumn_web::AutumnError::service_unavailable_msg(message)
                 .with_status(StatusCode::TOO_MANY_REQUESTS),
-            ErrorKind::Transport => autumn_web::AutumnError::service_unavailable_msg(message),
+            ErrorKind::Transport | ErrorKind::Unavailable => {
+                autumn_web::AutumnError::service_unavailable_msg(message)
+            }
             ErrorKind::Budget => autumn_web::AutumnError::internal_server_error_msg(message)
                 .with_status(StatusCode::PAYLOAD_TOO_LARGE),
         }

@@ -270,6 +270,10 @@ async fn check_status(
         }
         reqwest::StatusCode::TOO_MANY_REQUESTS => ErrorKind::RateLimited,
         reqwest::StatusCode::PAYLOAD_TOO_LARGE => ErrorKind::Budget,
+        // A timeout, a server fault, or an overload (Anthropic sends 529).
+        // A retry can succeed. The failed request may still have been billed.
+        reqwest::StatusCode::REQUEST_TIMEOUT => ErrorKind::Unavailable,
+        status if status.is_server_error() => ErrorKind::Unavailable,
         _ => ErrorKind::Provider,
     };
     Err(AgentError::new(kind, message))

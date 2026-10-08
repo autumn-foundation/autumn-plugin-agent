@@ -1,6 +1,6 @@
 [package]
 name = "autumn-plugin-agent"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Autumn plugin: provider-agnostic, always-on LLM agent harness (tool calling, sessions, memory, approvals, heartbeats) for OpenAI-compatible and Anthropic APIs."
@@ -12,14 +12,17 @@ categories = ["web-programming", "web-programming::http-server"]
 exclude = [".github/", "docs/", "CLAUDE.md", "clippy.toml", "proptest-regressions/"]
 
 [features]
-default = []
+default = ["autumn"]
+# The Autumn plugin, the background jobs, the heartbeat, follow-ups and the
+# health indicator. Turn it off to use the agent core without `autumn-web`.
+autumn = ["dep:autumn-web"]
 # Speak to providers over rustls with the platform verifier instead of
 # bundled WebPKI roots.
 native-tls = ["reqwest/rustls-tls-native-roots"]
 
 [dependencies]
 # No default features: the host app selects the Autumn features.
-autumn-web = { version = ">=0.8, <0.9", default-features = false }
+autumn-web = { version = ">=0.8, <0.9", default-features = false, optional = true }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 http = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
@@ -35,6 +38,14 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
 proptest = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
+
+[[example]]
+name = "weather_agent"
+required-features = ["autumn"]
+
+[[example]]
+name = "always_on_agent"
+required-features = ["autumn"]
 
 [package.metadata.docs.rs]
 all-features = true
