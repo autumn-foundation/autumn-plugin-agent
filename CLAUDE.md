@@ -13,14 +13,11 @@ export TMPDIR=~/workspace/.tmp-cargo                      # /tmp is a 512MB tmpf
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
-cargo clippy --locked --all-targets --no-default-features -- -D warnings
-cargo test --locked --all-targets --no-default-features
 cargo run --example weather_agent
 ```
 
-All gates must be green before push. `Cargo.lock` is committed — every
-command below runs `--locked`. The `autumn` feature (default) gates every
-module that needs `autumn-web`. Keep the rest free of it.
+All three gates must be green before push. `Cargo.lock` is committed — every
+command below runs `--locked`.
 
 ## Architecture
 

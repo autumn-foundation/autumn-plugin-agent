@@ -178,24 +178,11 @@ it from `ToolContext` to build idempotency keys.
 | `memory` | `MemoryStore`, bounded blocks, the `memory` tool |
 | `skills` | `Skill` (`SKILL.md`), the `load_skill` tool |
 | `delegate` | `AgentTool` subagents |
-| `proactive` | `Delivery`; `Heartbeat` and `schedule_followup` need `autumn` |
-| `jobs` | `agent_run` / `agent_resume` jobs, tracked enqueue (`autumn`) |
+| `proactive` | `Heartbeat`, `Delivery`, `schedule_followup` |
+| `jobs` | `agent_run` / `agent_resume` jobs, tracked enqueue |
 | `ids` | `RunId`, `SessionId` |
-| `plugin` | `AgentPlugin`, `AgentHandle` extractor (`autumn`) |
-| `health` | Provider health indicator (`autumn`) |
-
-## Cargo features
-
-| Feature | Default | Contents |
-|---------|---------|----------|
-| `autumn` | on | `plugin`, `jobs`, `health`, `Heartbeat`, follow-ups, `into_autumn_error`. Needs `autumn-web`. |
-| `native-tls` | off | Platform certificate roots for the provider HTTP client. |
-
-Turn off default features to use the agent core without `autumn-web`:
-
-```toml
-autumn-plugin-agent = { version = "0.3", default-features = false }
-```
+| `plugin` | `AgentPlugin`, `AgentHandle` extractor |
+| `health` | Provider health indicator |
 
 ## Known issues
 
