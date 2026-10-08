@@ -25,6 +25,7 @@ fn status_code_mapping_covers_every_kind() {
     }
 }
 
+#[cfg(feature = "autumn")]
 #[test]
 fn autumn_error_translation_preserves_status() {
     let err = AgentError::new(ErrorKind::RateLimited, "slow down");

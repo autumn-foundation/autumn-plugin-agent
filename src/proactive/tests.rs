@@ -1,15 +1,24 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use autumn_web::AppState;
+use autumn_web::task::TaskCoordination;
 
 use serde_json::json;
 
 use super::*;
 use crate::agent::{AgentRuntime, RunState};
 use crate::config::AgentConfig;
-use crate::policy::{Rule, ToolDecision};
+use crate::error::ErrorKind;
+use crate::ids::RunId;
+use crate::jobs::RunOrigin;
+use crate::memory::MemoryScope;
+use crate::policy::{Rule, Strictest, ToolDecision, ToolRules};
+use crate::proactive::*;
 use crate::test_support::Script;
-use crate::tools::FnTool;
+use crate::tools::{FnTool, Tool, ToolContext, ToolEffect};
 
 /// Collects every delivered report.
 #[derive(Debug, Default)]

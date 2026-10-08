@@ -4,6 +4,24 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+Version 0.3.0: the agent core builds without `autumn-web`.
+
+### Changed
+
+- New default feature `autumn`. It gates `plugin`, `jobs`, `health`,
+  `proactive::Heartbeat`, `proactive::FollowupTool`,
+  `AgentRuntime::with_followups` and `AgentError::into_autumn_error`.
+- With `default-features = false`, the crate has no `autumn-web` dependency.
+  The client, tools, policy, approvals, hooks, sessions, memory, skills and
+  the agent loop stay available. A durable engine can use them as its agent
+  layer (autumn-harvest issue #1973).
+- Breaking for a dependent that already sets `default-features = false`: add
+  `features = ["autumn"]` to keep the plugin.
+- CI builds, lints and tests both feature sets. It also fails when
+  `autumn-web` reaches the no-default dependency graph.
+
+## [0.2.0] - 2026-10-07
+
 Version 0.2.0: always-on agent primitives. Research and rationale:
 `docs/research/always-on-agents.md`, `docs/adr/0001-always-on-harness.md`.
 

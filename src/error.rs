@@ -116,6 +116,7 @@ impl AgentError {
     /// [`AutumnError::with_status`](autumn_web::AutumnError::with_status).
     /// This is a method rather than a `From` impl because Autumn ships a
     /// blanket `From<E: Error>` for `AutumnError` that would conflict.
+    #[cfg(feature = "autumn")]
     #[must_use]
     pub fn into_autumn_error(self) -> autumn_web::AutumnError {
         let message = self.to_string();
