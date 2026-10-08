@@ -4,30 +4,6 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
-Version 0.3.0: the agent core builds without `autumn-web`.
-
-### Changed
-
-- New default feature `autumn`. It gates `plugin`, `jobs`, `health`,
-  `proactive::Heartbeat`, `proactive::HeartbeatSchedule`,
-  `proactive::Precheck`, `proactive::FollowupTool`,
-  `AgentRuntime::with_followups`, `AgentError::into_autumn_error`, and the
-  `agent::{AgentRunArgs, enqueue_agent_run}` re-export.
-- With `default-features = false`, the crate has no `autumn-web` dependency.
-  The client, tools, policy, approvals, hooks, sessions, memory, skills and
-  the agent loop stay available. A durable engine can use them as its agent
-  layer (autumn-harvest issue #1973).
-- Breaking for a dependent that already sets `default-features = false`: add
-  `features = ["autumn"]` to keep the plugin.
-- New `ErrorKind::Unavailable`. A provider answer of 408, 5xx or 529 now
-  maps to it, not to `Provider`. It means that a retry can succeed, and it
-  maps to HTTP 503. `Provider` now means a request that a retry cannot fix,
-  for example a 400.
-- CI builds, lints and tests both feature sets. It also fails when
-  `autumn-web` reaches the no-default dependency graph.
-
-## [0.2.0] - 2026-10-07
-
 Version 0.2.0: always-on agent primitives. Research and rationale:
 `docs/research/always-on-agents.md`, `docs/adr/0001-always-on-harness.md`.
 

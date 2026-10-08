@@ -69,16 +69,10 @@
 //! | [`skills`] | `SKILL.md` skills and the `load_skill` tool |
 //! | [`delegate`] | Subagents as tools |
 //! | [`proactive`] | Heartbeats, follow-ups, and delivery |
-//! | `jobs` | The `agent_run` / `agent_resume` background jobs |
+//! | [`jobs`] | The `agent_run` / `agent_resume` background jobs |
 //! | [`ids`] | `RunId` and `SessionId` |
-//! | `plugin` | `AgentPlugin` registration and the `AgentHandle` extractor |
-//! | `health` | Provider health indicator for `/actuator/health` |
-//!
-//! # Features
-//!
-//! `autumn` (default) adds `plugin`, `jobs`, `health`, the heartbeat
-//! and follow-ups. It needs `autumn-web`. Without it, the agent core builds
-//! with no `autumn-web` dependency.
+//! | [`plugin`] | `AgentPlugin` registration and the `AgentHandle` extractor |
+//! | [`health`] | Provider health indicator for `/actuator/health` |
 
 #![forbid(unsafe_code)]
 #![deny(
@@ -94,15 +88,12 @@ pub mod client;
 pub mod config;
 pub mod delegate;
 pub mod error;
-#[cfg(feature = "autumn")]
 pub mod health;
 pub mod hooks;
 pub mod ids;
-#[cfg(feature = "autumn")]
 pub mod jobs;
 pub mod loop_guard;
 pub mod memory;
-#[cfg(feature = "autumn")]
 pub mod plugin;
 pub mod policy;
 pub mod proactive;
@@ -124,23 +115,18 @@ pub use client::{
 pub use config::{AgentConfig, ProviderKind};
 pub use delegate::AgentTool;
 pub use error::{AgentError, ErrorKind};
-#[cfg(feature = "autumn")]
 pub use health::AgentHealthIndicator;
 pub use hooks::{AgentHooks, HookAction, RunInfo, ToolOutput};
 pub use ids::{RunId, SessionId};
-#[cfg(feature = "autumn")]
 pub use jobs::{
     AgentResumeArgs, AgentRunArgs, RunOrigin, enqueue_agent_resume, enqueue_agent_resume_tracked,
     enqueue_agent_run, enqueue_agent_run_in, enqueue_agent_run_tracked,
 };
 pub use loop_guard::LoopGuard;
 pub use memory::{InMemoryMemoryStore, MemoryBlock, MemoryOp, MemoryScope, MemoryStore};
-#[cfg(feature = "autumn")]
 pub use plugin::{AgentHandle, AgentPlugin};
 pub use policy::{AllowAll, Rule, Strictest, ToolDecision, ToolPolicy, ToolRules};
-#[cfg(feature = "autumn")]
-pub use proactive::Heartbeat;
-pub use proactive::{Delivery, HEARTBEAT_OK, LogDelivery, Report, ReportSource};
+pub use proactive::{Delivery, HEARTBEAT_OK, Heartbeat, LogDelivery, Report, ReportSource};
 pub use session::{Compaction, InMemorySessionStore, SessionStore};
 pub use skills::Skill;
 pub use tools::{FnTool, Tool, ToolCall, ToolContext, ToolEffect};

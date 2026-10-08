@@ -2,10 +2,10 @@
 //!
 //! The plugin reads its settings from the `[agent]` section of `autumn.toml`
 //! (declared strict-config-safe through
-//! `AppBuilder::config_section`),
+//! [`AppBuilder::config_section`](autumn_web::app::AppBuilder::config_section)),
 //! then applies `AGENT_*` environment variables on top. Precedence, weakest
 //! to strongest: compiled defaults < `autumn.toml` < environment <
-//! `AgentPlugin::configure`.
+//! [`AgentPlugin::configure`](crate::plugin::AgentPlugin::configure).
 //!
 //! The API key is the deliberate exception: it comes **only** from the
 //! `AGENT_API_KEY` environment variable. A key sitting in `autumn.toml`

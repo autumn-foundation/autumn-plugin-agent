@@ -157,23 +157,8 @@ async fn openai_errors_map_to_kinds() {
         ),
         (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            ErrorKind::Unavailable,
+            ErrorKind::Provider,
         ),
-        (
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            ErrorKind::Unavailable,
-        ),
-        (
-            axum::http::StatusCode::REQUEST_TIMEOUT,
-            ErrorKind::Unavailable,
-        ),
-        // Anthropic answers 529 when it is overloaded.
-        (
-            axum::http::StatusCode::from_u16(529).unwrap(),
-            ErrorKind::Unavailable,
-        ),
-        (axum::http::StatusCode::BAD_REQUEST, ErrorKind::Provider),
-        (axum::http::StatusCode::PAYLOAD_TOO_LARGE, ErrorKind::Budget),
     ] {
         let router = Router::new().route(
             "/chat/completions",

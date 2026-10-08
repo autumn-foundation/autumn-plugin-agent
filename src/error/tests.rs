@@ -11,7 +11,6 @@ fn status_code_mapping_covers_every_kind() {
         (ErrorKind::RateLimited, StatusCode::TOO_MANY_REQUESTS),
         (ErrorKind::Provider, StatusCode::BAD_GATEWAY),
         (ErrorKind::Transport, StatusCode::SERVICE_UNAVAILABLE),
-        (ErrorKind::Unavailable, StatusCode::SERVICE_UNAVAILABLE),
         (ErrorKind::Tool, StatusCode::INTERNAL_SERVER_ERROR),
         (ErrorKind::Budget, StatusCode::PAYLOAD_TOO_LARGE),
         (ErrorKind::Decode, StatusCode::INTERNAL_SERVER_ERROR),
@@ -26,7 +25,6 @@ fn status_code_mapping_covers_every_kind() {
     }
 }
 
-#[cfg(feature = "autumn")]
 #[test]
 fn autumn_error_translation_preserves_status() {
     let err = AgentError::new(ErrorKind::RateLimited, "slow down");
@@ -69,7 +67,6 @@ proptest! {
         Just(ErrorKind::RateLimited),
         Just(ErrorKind::Provider),
         Just(ErrorKind::Transport),
-        Just(ErrorKind::Unavailable),
         Just(ErrorKind::Tool),
         Just(ErrorKind::Budget),
         Just(ErrorKind::Decode),
