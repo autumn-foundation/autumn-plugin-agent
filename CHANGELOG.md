@@ -4,9 +4,14 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-31
+
 ### Changed
 
-- Support `autumn-web` 0.9. The plugin now needs `autumn-web` 0.9.
+- **Breaking:** Support `autumn-web` 0.9. The plugin now needs `autumn-web`
+  0.9. Apps on `autumn-web` 0.8 stay on 0.2.
+
+## [0.2.0]
 
 Version 0.2.0: always-on agent primitives. Research and rationale:
 `docs/research/always-on-agents.md`, `docs/adr/0001-always-on-harness.md`.
