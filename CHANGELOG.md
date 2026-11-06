@@ -4,6 +4,13 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-06
+
+### Changed
+
+- **Breaking:** Support `autumn-web` 0.10. The plugin now needs `autumn-web`
+  0.10 and Rust 1.97. Apps on `autumn-web` 0.9 stay on 0.3.0.
+
 ## [0.3.0] - 2026-10-31
 
 ### Changed

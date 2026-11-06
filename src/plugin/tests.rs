@@ -111,7 +111,7 @@ mod always_on {
             .skills(vec![Skill::new("b", "Skill b.", "body b")])
             .compaction(Compaction::default())
             .delivery(Arc::new(LogDelivery))
-            .heartbeat(Heartbeat::every(Duration::from_secs(1_800)))
+            .heartbeat(Heartbeat::every(Duration::from_mins(30)))
             .followups(Duration::from_secs(3_600))
             .tool(
                 FnTool::new("send", "Sends.", json!({}), |_: serde_json::Value| async {

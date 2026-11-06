@@ -181,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  agent: {}", turn.outcome.text().unwrap_or_default());
 
     println!("3. Heartbeats");
-    let heartbeat = Heartbeat::every(Duration::from_secs(1_800)).session("ops");
+    let heartbeat = Heartbeat::every(Duration::from_mins(30)).session("ops");
     let app = autumn_web::AppState::detached();
     for tick in 1..=2 {
         let outcome = heartbeat.tick(&runtime, &app).await?;

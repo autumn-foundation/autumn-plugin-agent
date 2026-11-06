@@ -132,7 +132,7 @@ fn heartbeat_builder_and_task() {
     assert_eq!(task.schedule.to_string(), "cron 0 */30 * * * *");
     assert!(format!("{heartbeat:?}").contains("read_only: true"));
 
-    let every = Heartbeat::every(Duration::from_secs(1_800)).timezone("ignored");
+    let every = Heartbeat::every(Duration::from_mins(30)).timezone("ignored");
     assert_eq!(every.task_info().schedule.to_string(), "every 1800s");
     assert_eq!(every.task_info().coordination, TaskCoordination::Fleet);
 }
@@ -310,7 +310,7 @@ fn followup_plans_are_validated() {
             &ctx,
         )
         .unwrap();
-    assert_eq!(delay, Duration::from_secs(1_200));
+    assert_eq!(delay, Duration::from_mins(20));
     assert_eq!(args.prompt, "check the deploy");
     assert_eq!(args.session, Some(SessionId::new("chat-9")));
     assert_eq!(args.memory_scope, Some(MemoryScope::new("u1")));
