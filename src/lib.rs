@@ -130,3 +130,8 @@ pub use proactive::{Delivery, HEARTBEAT_OK, Heartbeat, LogDelivery, Report, Repo
 pub use session::{Compaction, InMemorySessionStore, SessionStore};
 pub use skills::Skill;
 pub use tools::{FnTool, Tool, ToolCall, ToolContext, ToolEffect};
+
+/// Compiles the Rust snippets of the README as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;

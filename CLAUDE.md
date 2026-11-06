@@ -51,6 +51,8 @@ runtime. Research and design records: `docs/research/`, `docs/adr/`.
 
 ## Rules
 
+- README Rust snippets are doctests. Make them compile; use `no_run`, not `ignore`.
+  `tests/doc_snippets.rs` checks the TOML snippets and the version pins in the docs.
 - No `unwrap` / `expect` / `panic` / `todo` / `unimplemented` in production
   code (deny lints). Tests may use them via the module-level `allow`.
 - Docs and comments in ASD-STE100 style: short sentences, active voice,

@@ -16,7 +16,7 @@ directly:
 
 Add the plugin and a tool:
 
-```rust,ignore
+```rust,no_run
 use autumn_plugin_agent::plugin::{AgentHandle, AgentPlugin};
 use autumn_plugin_agent::{AgentError, FnTool};
 use autumn_web::prelude::*;
@@ -83,18 +83,22 @@ The crate has the primitives that today's always-on agents (Hermes,
 OpenClaw, Dots, Muse) share. See
 [`docs/research/always-on-agents.md`](docs/research/always-on-agents.md).
 
-```rust,ignore
+```rust,no_run
 use std::sync::Arc;
 use std::time::Duration;
-use autumn_plugin_agent::{AgentPlugin, Heartbeat, InMemoryMemoryStore, ToolRules};
+use autumn_plugin_agent::{
+    AgentPlugin, Delivery, Heartbeat, InMemoryMemoryStore, Tool, ToolRules,
+};
 
-AgentPlugin::new()
-    .tool(send_email)                                  // declares ToolEffect::External
-    .memory_store(InMemoryMemoryStore::default().shared())
-    .policy(Arc::new(ToolRules::ask_before_acting()))  // pause before writes
-    .heartbeat(Heartbeat::every(Duration::from_secs(1_800)).session("ops"))
-    .followups(Duration::from_secs(24 * 3_600))        // agent books its own wake-ups
-    .delivery(my_slack_delivery);                      // where reports go
+fn plugin(send_email: Arc<dyn Tool>, my_slack_delivery: Arc<dyn Delivery>) -> AgentPlugin {
+    AgentPlugin::new()
+        .tool(send_email)                                  // declares ToolEffect::External
+        .memory_store(InMemoryMemoryStore::default().shared())
+        .policy(Arc::new(ToolRules::ask_before_acting()))  // pause before writes
+        .heartbeat(Heartbeat::every(Duration::from_secs(1_800)).session("ops"))
+        .followups(Duration::from_secs(24 * 3_600))        // agent books its own wake-ups
+        .delivery(my_slack_delivery)                       // where reports go
+}
 ```
 
 | Feature | API |
@@ -147,16 +151,20 @@ leaves a tool result without its call.
 
 ## Background runs
 
-```rust,ignore
+```rust,no_run
 use autumn_plugin_agent::{AgentRunArgs, SessionId, enqueue_agent_run_tracked};
+use autumn_web::AutumnResult;
 
-let handle = enqueue_agent_run_tracked(
-    AgentRunArgs::new("Summarize today's signups.")
-        .session(SessionId::new("daily-report"))
-        .deliver(true),
-)
-.await?;
-// Poll handle.status_path(); the result is the AgentOutcome as JSON.
+async fn daily_report() -> AutumnResult<String> {
+    let handle = enqueue_agent_run_tracked(
+        AgentRunArgs::new("Summarize today's signups.")
+            .session(SessionId::new("daily-report"))
+            .deliver(true),
+    )
+    .await?;
+    // Poll this path. The result is the AgentOutcome as JSON.
+    Ok(handle.status_path())
+}
 ```
 
 The run id is fixed at enqueue time, so a retried job keeps it. Tools read
