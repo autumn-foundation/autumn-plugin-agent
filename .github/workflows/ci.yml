@@ -20,3 +20,5 @@ jobs:
         run: cargo test --locked --all-targets --all-features
         env:
           TMPDIR: ${{ runner.temp }}
+      - name: README and API doc examples
+        run: cargo test --locked --doc --all-features
