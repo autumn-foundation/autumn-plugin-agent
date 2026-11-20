@@ -185,7 +185,7 @@ pub enum HeartbeatSchedule {
 /// let heartbeat = Heartbeat::cron("0 */30 8-18 * * Mon-Fri")
 ///     .timezone("Europe/Oslo")
 ///     .session("ops");
-/// # let _ = Heartbeat::every(Duration::from_secs(1_800));
+/// # let _ = Heartbeat::every(Duration::from_mins(30));
 /// ```
 #[derive(Clone)]
 pub struct Heartbeat {

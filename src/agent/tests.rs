@@ -751,7 +751,7 @@ impl LlmClient for SlowClient {
         _request: &'a ChatRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<ChatResponse, AgentError>> + Send + 'a>> {
         Box::pin(async {
-            tokio::time::sleep(std::time::Duration::from_secs(3_600)).await;
+            tokio::time::sleep(std::time::Duration::from_hours(1)).await;
             Ok(ScriptClient::answer("late"))
         })
     }
@@ -787,7 +787,7 @@ async fn deadline_cuts_off_a_slow_tool() {
         ScriptClient::answer("never"),
     ]);
     let slow = FnTool::new("slow", "Sleeps.", json!({}), |_: serde_json::Value| async {
-        tokio::time::sleep(std::time::Duration::from_secs(3_600)).await;
+        tokio::time::sleep(std::time::Duration::from_hours(1)).await;
         Ok(json!("late"))
     })
     .shared();

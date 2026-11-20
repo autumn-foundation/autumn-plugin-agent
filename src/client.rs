@@ -342,7 +342,7 @@ impl OpenAiCompatibleClient {
         api_key: impl Into<String>,
     ) -> Result<Self, AgentError> {
         Ok(Self {
-            http: http_client(Duration::from_secs(60))?,
+            http: http_client(Duration::from_mins(1))?,
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             model: model.into(),
             api_key: api_key.into(),
@@ -641,7 +641,7 @@ impl AnthropicClient {
         api_key: impl Into<String>,
     ) -> Result<Self, AgentError> {
         Ok(Self {
-            http: http_client(Duration::from_secs(60))?,
+            http: http_client(Duration::from_mins(1))?,
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             model: model.into(),
             api_key: api_key.into(),
