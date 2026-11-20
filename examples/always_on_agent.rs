@@ -18,7 +18,7 @@
 //! AgentPlugin::new()
 //!     .memory_store(store)
 //!     .policy(Arc::new(ToolRules::ask_before_acting()))
-//!     .heartbeat(Heartbeat::every(Duration::from_secs(1_800)).session("ops"))
+//!     .heartbeat(Heartbeat::every(Duration::from_mins(30)).session("ops"))
 //!     .followups(Duration::from_secs(24 * 3_600))
 //!     .delivery(my_delivery)
 //! ```

@@ -112,7 +112,7 @@ mod always_on {
             .compaction(Compaction::default())
             .delivery(Arc::new(LogDelivery))
             .heartbeat(Heartbeat::every(Duration::from_mins(30)))
-            .followups(Duration::from_secs(3_600))
+            .followups(Duration::from_hours(1))
             .tool(
                 FnTool::new("send", "Sends.", json!({}), |_: serde_json::Value| async {
                     Ok(json!("sent"))

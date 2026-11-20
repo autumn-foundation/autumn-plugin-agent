@@ -2,7 +2,7 @@
 
 Provider-agnostic LLM agent harness with tool calling for [Autumn](https://autumn-web.app) apps.
 
-Requires `autumn-web` 0.10.
+Requires `autumn-web` 0.11.
 
 One trait, two providers, zero heavyweight LLM SDKs. The plugin speaks HTTP
 directly:

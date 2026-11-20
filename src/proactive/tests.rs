@@ -146,7 +146,7 @@ fn heartbeat_validation() {
     );
     assert!(Heartbeat::cron("  ").validate().is_err());
     assert!(
-        Heartbeat::every(Duration::from_secs(60))
+        Heartbeat::every(Duration::from_mins(1))
             .prompt(" ")
             .validate()
             .is_err()
@@ -158,7 +158,7 @@ async fn quiet_heartbeat_delivers_nothing() {
     let client = Script::new(vec![Script::answer(HEARTBEAT_OK)]);
     let inbox = Arc::new(Inbox::default());
     let runtime = runtime(client.clone(), Arc::clone(&inbox), Vec::new());
-    let outcome = Heartbeat::every(Duration::from_secs(60))
+    let outcome = Heartbeat::every(Duration::from_mins(1))
         .tick(&runtime, &AppState::detached())
         .await
         .unwrap()
@@ -183,7 +183,7 @@ async fn noteworthy_heartbeat_is_delivered_and_stays_read_only() {
         Arc::clone(&inbox),
         vec![writer(Arc::clone(&restarts))],
     );
-    Heartbeat::every(Duration::from_secs(60))
+    Heartbeat::every(Duration::from_mins(1))
         .session("ops")
         .tick(&runtime, &AppState::detached())
         .await
@@ -216,7 +216,7 @@ async fn allow_actions_lifts_the_read_only_rule_but_keeps_the_app_policy() {
     ]);
     let inbox = Arc::new(Inbox::default());
     let runtime = runtime(client, inbox, vec![writer(Arc::clone(&restarts))]);
-    Heartbeat::every(Duration::from_secs(60))
+    Heartbeat::every(Duration::from_mins(1))
         .allow_actions()
         .tick(&runtime, &AppState::detached())
         .await
@@ -255,7 +255,7 @@ async fn allow_actions_lifts_the_read_only_rule_but_keeps_the_app_policy() {
 async fn precheck_skips_the_model_call() {
     let client = Script::new(Vec::new());
     let runtime = runtime(client.clone(), Arc::default(), Vec::new());
-    let heartbeat = Heartbeat::every(Duration::from_secs(60)).precheck(|_state| async { false });
+    let heartbeat = Heartbeat::every(Duration::from_mins(1)).precheck(|_state| async { false });
     assert!(format!("{heartbeat:?}").contains("precheck: true"));
     let outcome = heartbeat
         .tick(&runtime, &AppState::detached())
@@ -270,7 +270,7 @@ async fn failed_delivery_is_logged_not_returned() {
     let client = Script::new(vec![Script::answer("Something happened.")]);
     let runtime = AgentRuntime::new(AgentConfig::default(), client, Vec::new())
         .with_delivery(Arc::new(Broken));
-    let outcome = Heartbeat::every(Duration::from_secs(60))
+    let outcome = Heartbeat::every(Duration::from_mins(1))
         .tick(&runtime, &AppState::detached())
         .await
         .unwrap();
@@ -289,7 +289,7 @@ async fn heartbeat_task_handler_runs_the_installed_heartbeat() {
     let state = AppState::detached();
     let installed = runtime(client.clone(), Arc::clone(&inbox), Vec::new());
     state.extension_or_insert_with(|| installed);
-    state.extension_or_insert_with(|| HeartbeatSettings(Heartbeat::every(Duration::from_secs(60))));
+    state.extension_or_insert_with(|| HeartbeatSettings(Heartbeat::every(Duration::from_mins(1))));
     heartbeat_tick(state).await.unwrap();
     assert_eq!(inbox.0.lock().unwrap().len(), 1);
     assert_eq!(client.requests().len(), 1);
@@ -297,7 +297,7 @@ async fn heartbeat_task_handler_runs_the_installed_heartbeat() {
 
 #[test]
 fn followup_plans_are_validated() {
-    let tool = FollowupTool::new(Duration::from_secs(3_600)).memory_scope(MemoryScope::new("u1"));
+    let tool = FollowupTool::new(Duration::from_hours(1)).memory_scope(MemoryScope::new("u1"));
     let ctx = ToolContext {
         run_id: RunId::new("r"),
         call_id: "c".to_owned(),
@@ -319,12 +319,12 @@ fn followup_plans_are_validated() {
     assert_eq!(args.followup_depth, 1);
 
     // Chains are capped.
-    let deep = FollowupTool::new(Duration::from_secs(3_600)).depth(FollowupTool::MAX_CHAIN - 1);
+    let deep = FollowupTool::new(Duration::from_hours(1)).depth(FollowupTool::MAX_CHAIN - 1);
     let (args, _) = deep
         .plan(&json!({"delay_minutes": 1, "prompt": "x"}), &ctx)
         .unwrap();
     assert_eq!(args.followup_depth, FollowupTool::MAX_CHAIN);
-    let too_deep = FollowupTool::new(Duration::from_secs(3_600)).depth(FollowupTool::MAX_CHAIN);
+    let too_deep = FollowupTool::new(Duration::from_hours(1)).depth(FollowupTool::MAX_CHAIN);
     let err = too_deep
         .plan(&json!({"delay_minutes": 1, "prompt": "x"}), &ctx)
         .unwrap_err();
@@ -354,7 +354,7 @@ fn followup_plans_are_validated() {
 
 #[tokio::test]
 async fn followup_without_a_job_runtime_reports_a_tool_error() {
-    let tool = FollowupTool::new(Duration::from_secs(3_600));
+    let tool = FollowupTool::new(Duration::from_hours(1));
     let err = tool
         .execute(
             json!({"delay_minutes": 5, "prompt": "check"}),

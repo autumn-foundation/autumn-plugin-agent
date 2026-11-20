@@ -163,7 +163,7 @@ async fn enqueue_without_a_job_runtime_fails_cleanly() {
             .is_err()
     );
     assert!(
-        enqueue_agent_run_in(AgentRunArgs::new("x"), Duration::from_secs(60))
+        enqueue_agent_run_in(AgentRunArgs::new("x"), Duration::from_mins(1))
             .await
             .is_err()
     );
